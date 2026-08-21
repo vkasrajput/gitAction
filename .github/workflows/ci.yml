@@ -1,4 +1,4 @@
-name: Node.js CI
+name: Node.js CI/CD
 
 on:
   push:
@@ -9,30 +9,50 @@ on:
     branches:
       - main
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Download repository code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # 4. Run Jest tests
       - name: Run tests
         run: npm test
 
-      # 5. Build Docker image
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::571486265924:role/GitHubActions-ECR-CICD
+          aws-region: eu-north-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Build Docker image
-        run: docker build -t cicd-node-backend .
+        run: |
+          docker build -t cicd-node-backend .
+
+      - name: Tag Docker image
+        run: |
+          docker tag cicd-node-backend:latest \
+            571486265924.dkr.ecr.eu-north-1.amazonaws.com/cicd-node-backend:latest
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push \
+            571486265924.dkr.ecr.eu-north-1.amazonaws.com/cicd-node-backend:latest
